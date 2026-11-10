@@ -59,6 +59,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 .state i{width:.6em;height:.6em;background:var(--mid);border-radius:50%}
 .state.open i{background:#12a150;box-shadow:0 0 0 3px #12a15033}
 .state.shut i{background:var(--r)}
+.lang{position:relative}
+.lang>button{display:flex;align-items:center;gap:.4em;background:var(--w);border:2px solid var(--k);padding:.3em .55em;font-size:.82rem}
+.lang>button:hover,.lang>button[aria-expanded=true]{background:var(--k);color:var(--w)}
+.lang svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8}
+.lang ul{position:absolute;right:0;top:calc(100% + 8px);margin:0;padding:4px;list-style:none;background:var(--w);border:2px solid var(--k);box-shadow:5px 5px 0 var(--r);min-width:140px;z-index:60}
+.lang li button{display:block;width:100%;text-align:left;background:none;border:0;padding:.5em .7em;font-weight:600}
+.lang li button:hover{background:var(--g)}
+.lang li button[aria-current=true]{background:var(--k);color:var(--w)}
 .call{background:var(--r);color:var(--w);text-decoration:none;padding:.5em .9em;font-size:.9rem;white-space:nowrap}
 .call:hover{background:var(--k)}
 
@@ -238,7 +246,8 @@ dialog::backdrop{background:#000a}
   body{font-size:16px}
   .top .mark{font-size:1.5rem} .top .wrap{gap:10px}
   .state{font-size:.72rem;padding:.25em .5em}
-  .call span{display:none}
+  .call span{display:none} .xs-hide{display:none}
+  .bar{gap:10px;padding:.6em .6em .6em .8em} .bar>span{font-size:.78rem;white-space:nowrap} .bar strong{font-size:1rem} .bar em{font-size:.74rem;white-space:nowrap;padding:.5em .6em}
   .tools .wrap{flex-wrap:wrap;gap:8px;padding-block:8px}
   .cats{flex:1 0 100%;order:2;margin-inline:calc(var(--pad) * -1);padding-inline:var(--pad)}
   .find{flex:1;width:auto}
@@ -271,6 +280,14 @@ dialog::backdrop{background:#000a}
       <a href="#donde">Dónde estamos</a>
     </nav>
     <span class="state cond" id="state"><i></i><span>12:00 – 23:00</span></span>
+    <div class="lang" id="lang">
+      <button class="cond" id="lang-b" aria-haspopup="true" aria-expanded="false" aria-label="Idioma / Language"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span id="lang-c">ES</span></button>
+      <ul id="lang-m" hidden>
+        <li><button data-l="es" lang="es">Español</button></li>
+        <li><button data-l="ca" lang="ca">Català</button></li>
+        <li><button data-l="en" lang="en">English</button></li>
+      </ul>
+    </div>
     <a class="call cond" href="tel:+34613929855" aria-label="Llamar al 613 92 98 55">☎ <span>613 92 98 55</span></a>
   </div>
 </header>
@@ -387,7 +404,7 @@ dialog::backdrop{background:#000a}
             <div><dt class="cond">Horario</dt>
               <dd>
                 <div class="week cond" id="week"><span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span><span>Do</span></div>
-                <span class="hours">12:00 – 23:00</span> · abierto los siete días
+                <span class="hours">12:00 – 23:00</span> <span id="h7">· abierto los siete días</span>
               </dd></div>
             <div><dt class="cond">Teléfono</dt><dd><a href="tel:+34613929855">613 92 98 55</a></dd></div>
             <div><dt class="cond">Cerca de</dt><dd>Plaça de la Verge Maria, Plaça d'Espanya y el Passeig de Dintre. A unos 5 minutos andando de la playa.</dd></div>
@@ -426,7 +443,7 @@ dialog::backdrop{background:#000a}
 </footer>
 
 <button class="bar" id="bar" aria-haspopup="dialog">
-  <span><strong id="bar-n">0</strong> en tu pedido · <strong id="bar-t">0,00 €</strong></span>
+  <span><strong id="bar-n">0</strong> <span id="bar-l">en tu pedido</span> · <strong id="bar-t">0,00 €</strong></span>
   <em class="cond">Ver pedido</em>
 </button>
 
@@ -572,32 +589,247 @@ const eur = n => n.toFixed(2).replace('.', ',') + ' €';
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+/* ---------- idiomas ---------- */
+const LANGS = ['es', 'ca', 'en'];
+let lang = '';
+try { lang = localStorage.getItem('bonfood-lang') || ''; } catch (e) {}
+if (!LANGS.includes(lang)) { const n = (navigator.language || 'es').slice(0, 2).toLowerCase(); lang = LANGS.includes(n) ? n : 'es'; }
+
+// textos que escribe el script
+const S = {
+  es: {veg:'Sin carne', ask:'Consultar precio', add:(n,p)=>`Añadir ${n} al pedido, ${p}`, ud:'/ ud.', less:'Quitar uno', more:'Añadir uno',
+    empty:'Aún no has apuntado nada. Toca cualquier precio de la carta para añadirlo.', head:'Pedido Bon Food:', total:'Total aprox.:',
+    copy:'Copiar la lista', copied:'Lista copiada ✓', nocopy:'No se pudo copiar', open:'Abierto', until:'hasta las 23:00', shut:'Cerrado',
+    opens:'abre a las 12:00', tom:'abre mañana 12:00', ph:'Buscar: durum, falafel…', phA:'Buscar en la carta', call:'Llamar al 613 92 98 55',
+    days:['Lu','Ma','Mi','Ju','Vi','Sá','Do'], title:'Bon Food Blanes · Kebab, durum, pizzas y burgers en la Rambla'},
+  ca: {veg:'Sense carn', ask:'Consulta el preu', add:(n,p)=>`Afegeix ${n} a la comanda, ${p}`, ud:'/ u.', less:'Treu-ne un', more:'Afegeix-ne un',
+    empty:'Encara no has apuntat res. Toca qualsevol preu de la carta per afegir-lo.', head:'Comanda Bon Food:', total:'Total aprox.:',
+    copy:'Copia la llista', copied:'Llista copiada ✓', nocopy:"No s'ha pogut copiar", open:'Obert', until:'fins a les 23:00', shut:'Tancat',
+    opens:'obre a les 12:00', tom:'obre demà 12:00', ph:'Cerca: durum, falafel…', phA:'Cerca a la carta', call:'Truca al 613 92 98 55',
+    days:['Dl','Dt','Dc','Dj','Dv','Ds','Dg'], title:'Bon Food Blanes · Kebab, durum, pizzes i burgers a la Rambla'},
+  en: {veg:'Meat-free', ask:'Ask for price', add:(n,p)=>`Add ${n} to your order, ${p}`, ud:'each', less:'Remove one', more:'Add one',
+    empty:'Nothing here yet. Tap any price on the menu to add it.', head:'Bon Food order:', total:'Approx. total:',
+    copy:'Copy the list', copied:'List copied ✓', nocopy:'Could not copy', open:'Open', until:'until 23:00', shut:'Closed',
+    opens:'opens at 12:00', tom:'opens tomorrow 12:00', ph:'Search: durum, falafel…', phA:'Search the menu', call:'Call 613 92 98 55',
+    days:['Mo','Tu','We','Th','Fr','Sa','Su'], title:'Bon Food Blanes · Kebab, durum, pizza and burgers on the Rambla'}
+};
+const t = k => S[lang][k];
+
+// textos fijos de la página: selector → [català, English]; el castellano es el del HTML
+const I = {
+  '.top nav a:nth-child(1)': ['Carta', 'Menu'],
+  '.top nav a:nth-child(2)': ['Menús', 'Meal deals'],
+  '.top nav a:nth-child(3)': ['Com demanar', 'How to order'],
+  '.top nav a:nth-child(4)': ['On som', 'Find us'],
+  '.kicker': ['Kebab · Pizza · Burgers — Blanes', 'Kebab · Pizza · Burgers — Blanes'],
+  '.lead': ['Kebab acabat de tallar, <b>durum al forn</b>, pizzes i burgers en plena Rambla de Blanes. Cuina oberta <b>cada dia de 12:00 a 23:00</b>, per menjar aquí, emportar o rebre a casa.',
+            'Freshly carved kebab, <b>oven-baked durum</b>, pizzas and burgers right on the Rambla in Blanes. Kitchen open <b>every day from 12:00 to 23:00</b>: eat in, take away or get it delivered.'],
+  '.hero .cta a:nth-child(1)': ['Veure la carta', 'See the menu'],
+  '.hero .cta a:nth-child(2)': ['Demanar a domicili', 'Order delivery'],
+  '.hero .cta a:nth-child(3)': ['☎ Trucar', '☎ Call'],
+  '.tag small': ['Durum kebab des de', 'Durum kebab from'],
+  '.facts .wrap>:nth-child(1) small': ['Horari', 'Hours'],
+  '.facts .wrap>:nth-child(1) span': ['Cada dia · 12:00 – 23:00', 'Every day · 12:00 – 23:00'],
+  '.facts .wrap>:nth-child(2) small': ['Adreça', 'Address'],
+  '.facts .wrap>:nth-child(3) small': ['Telèfon', 'Phone'],
+  '.facts .wrap>:nth-child(4) small': ['Servei', 'Service'],
+  '.facts .wrap>:nth-child(4) span': ['Local · Per emportar · A domicili', 'Eat in · Takeaway · Delivery'],
+  '#top h2': ['El que més surt', 'Best sellers'],
+  '#top .sec-h p': ['Si és la teva primera vegada, comença per aquí. Tot es prepara al moment amb pollastre, vedella o mixt.', 'First time here? Start with these. Everything is made to order with chicken, beef or mixed meat.'],
+  '.star:nth-child(1) .n': ['El clàssic', 'The classic'],
+  '.star:nth-child(1) h3': ['Durum kebab', 'Durum kebab'],
+  '.star:nth-child(1) p': ['Tortilla de blat enrotllada amb carn acabada de tallar, amanida i la salsa que vulguis.', 'A rolled wheat tortilla with freshly carved meat, salad and the sauce you like.'],
+  '.star:nth-child(2) .n': ['Per a molta gana', 'Seriously hungry'],
+  '.star:nth-child(2) h3': ['Durum XL i XXL', 'Durum XL & XXL'],
+  '.star:nth-child(2) p': ['El mateix durum, en mida gran i en mida «avui no sopo». Dels més demanats de la casa.', 'The same durum in large and in “no dinner needed” size. One of the house favourites.'],
+  '.star:nth-child(3) .n': ['Especialitat', 'Speciality'],
+  '.star:nth-child(3) h3': ['Durum al forn', 'Oven-baked durum'],
+  '.star:nth-child(3) p': ['Durum gratinat al forn: cruixent per fora i fos per dins.', 'Durum finished in the oven: crisp outside, melting inside.'],
+  '.star:nth-child(4) .n': ['Sense pa', 'No bread'],
+  '.star:nth-child(4) h3': ['Doner box', 'Doner box'],
+  '.star:nth-child(4) p': ['Capsa de carn de kebab o falafel amb la seva amanida. Còmoda per emportar.', 'A box of kebab meat or falafel with salad. Easy to take away.'],
+  '#carta h2': ['La carta', 'The menu'],
+  '#carta .sec-h p': ['Toca un preu per apuntar-lo a <strong style="color:#fff">la teva comanda</strong>: veuràs el total i podràs trucar-nos amb la llista feta.', 'Tap a price to add it to <strong style="color:#fff">your order</strong>: you will see the total and can call us with your list ready.'],
+  '#veg': ['Sense carn', 'Meat-free'],
+  '#none': ['No hi ha res a la carta amb aquesta cerca. Prova amb una altra paraula o truca\'ns al <a href="tel:+34613929855" style="color:#fff">613 92 98 55</a>.', 'Nothing on the menu matches that search. Try another word or call us on <a href="tel:+34613929855" style="color:#fff">613 92 98 55</a>.'],
+  '.fine': ["Preus en euros, IVA inclòs, segons la carta publicada per a comandes en línia; al local poden variar lleugerament. Els kebabs, plats i menús se serveixen amb pollastre, vedella o mixt. «Sense carn» indica plats sense carn ni peix. Si tens alguna al·lèrgia o intolerància, consulta'ns abans de demanar.",
+            'Prices in euros, VAT included, as listed on the online ordering menu; in-store prices may differ slightly. Kebabs, plates and meal deals come with chicken, beef or mixed meat. “Meat-free” marks dishes with no meat or fish. If you have an allergy or intolerance, please ask before ordering.'],
+  '#pedir h2': ['Com demanar', 'How to order'],
+  '#pedir .sec-h p': ['Tres maneres, el mateix kebab.', 'Three ways, same kebab.'],
+  '.way:nth-child(1) h3': ['Vine al local', 'Come in'],
+  '.way:nth-child(1) p': ['Som a la Rambla de Joaquim Ruyra, al centre de Blanes i a pocs minuts a peu del passeig marítim. Demana a la barra i menja aquí.', 'We are on Rambla de Joaquim Ruyra, in the centre of Blanes, a few minutes’ walk from the seafront. Order at the counter and eat in.'],
+  '.way:nth-child(1) a.go': ['Com arribar-hi →', 'Get directions →'],
+  '.way:nth-child(2) h3': ['Truca i recull', 'Call & collect'],
+  '.way:nth-child(2) p': ['Fes la teva llista a la carta, truca\'ns i digues què vols. Quan arribis ho tindràs a punt per emportar, sense esperes.', 'Build your list on the menu, call us and tell us what you want. It will be ready to take away when you arrive.'],
+  '.way:nth-child(3) h3': ['A domicili', 'Delivery'],
+  '.way:nth-child(3) p': ['Repartim a Blanes a través de Just Eat, on a més hi sol haver descomptes i targeta de segells. Pagament en línia o en rebre la comanda.', 'We deliver in Blanes through Just Eat, which often has discounts and a stamp card. Pay online or on delivery.'],
+  '.way:nth-child(3) a.go': ['Demanar a Just Eat →', 'Order on Just Eat →'],
+  '#donde h2': ['On som', 'Find us'],
+  '.info dl>div:nth-child(1) dt': ['Horari', 'Hours'],
+  '#h7': ['· obert els set dies', '· open seven days a week'],
+  '.info dl>div:nth-child(2) dt': ['Telèfon', 'Phone'],
+  '.info dl>div:nth-child(3) dt': ['A prop de', 'Nearby'],
+  '.info dl>div:nth-child(3) dd': ["Plaça de la Verge Maria, Plaça d'Espanya i el Passeig de Dintre. A uns 5 minuts a peu de la platja.", "Plaça de la Verge Maria, Plaça d'Espanya and Passeig de Dintre. About a 5-minute walk from the beach."],
+  '.info .cta a:nth-child(1)': ['Com arribar-hi', 'Get directions'],
+  '.info .cta a:nth-child(2)': ['Veure a Google Maps', 'Open in Google Maps'],
+  '#dudas h2': ['Dubtes ràpids', 'Quick questions'],
+  '.faq details:nth-of-type(1) summary': ['Teniu opcions sense carn?', 'Do you have meat-free options?'],
+  '.faq details:nth-of-type(1) p': ['Sí. Pita, durum, doner box i plat de falafel, pizzes Margarita, Xampinyons, Ceba, Vegetal i Quatre Formatges, calzone vegetal, amanida verda i diverses tapes. A la carta pots prémer «Sense carn» per veure-les totes juntes.', 'Yes. Falafel pita, durum, doner box and plate, Margherita, Mushroom, Onion, Veggie and Four Cheese pizzas, veggie calzone, green salad and several sides. Tap “Meat-free” on the menu to see them all together.'],
+  '.faq details:nth-of-type(2) summary': ['Quina carn porta el kebab?', 'What meat is in the kebab?'],
+  '.faq details:nth-of-type(2) p': ["Pots triar pollastre, vedella o mixt en kebabs, plats, patates amb carn i menús. El salami de les pizzes és de gall dindi.", 'You can choose chicken, beef or mixed for kebabs, plates, fries with meat and meal deals. The salami on our pizzas is turkey.'],
+  '.faq details:nth-of-type(3) summary': ['Què inclouen els menús?', 'What comes with the meal deals?'],
+  '.faq details:nth-of-type(3) p': ['Els menús individuals porten patates i beguda. Els menús per compartir inclouen diverses racions de patates i begudes en llauna o de 2 litres, segons el menú. Està tot detallat a la carta.', 'Single meal deals come with fries and a drink. Sharing deals include several portions of fries and canned or 2-litre drinks, depending on the deal. It is all detailed on the menu.'],
+  '.faq details:nth-of-type(4) summary': ['Repartiu a domicili?', 'Do you deliver?'],
+  '.faq details:nth-of-type(4) p': ["Sí, a Blanes a través de Just Eat, dins del nostre horari de 12:00 a 23:00. Si prefereixes recollir-ho tu mateix, truca'ns al 613 92 98 55 i t'ho preparem.", 'Yes, in Blanes through Just Eat, during our opening hours from 12:00 to 23:00. If you would rather collect, call us on 613 92 98 55 and we will get it ready.'],
+  '.faq details:nth-of-type(5) summary': ['Tinc una al·lèrgia, a qui pregunto?', 'I have an allergy. Who do I ask?'],
+  '.faq details:nth-of-type(5) p': ["Truca'ns o pregunta a la barra abans de demanar i et direm què porta cada plat.", 'Call us or ask at the counter before ordering and we will tell you what is in each dish.'],
+  'footer p': ['Rambla de Joaquim Ruyra, 43 · 17300 Blanes<br>Cada dia de 12:00 a 23:00 · <a href="tel:+34613929855">613 92 98 55</a><br><a href="https://www.just-eat.es/restaurants-bon-food-blanes/menu" target="_blank" rel="noopener">Demanar a Just Eat</a> · <a href="#carta">Carta</a> · <a href="#donde">Mapa</a>',
+               'Rambla de Joaquim Ruyra, 43 · 17300 Blanes<br>Every day 12:00 to 23:00 · <a href="tel:+34613929855">613 92 98 55</a><br><a href="https://www.just-eat.es/restaurants-bon-food-blanes/menu" target="_blank" rel="noopener">Order on Just Eat</a> · <a href="#carta">Menu</a> · <a href="#donde">Map</a>'],
+  '#bar-l': ['a la teva comanda', 'in your order'],
+  '.bar em': ['Veure comanda', 'View order'],
+  '#sheet-h': ['La teva comanda', 'Your order'],
+  '.tot span': ['Total aproximat', 'Approx. total'],
+  '.sum a:nth-of-type(1)': ['☎ Trucar i demanar · 613 92 98 55', '☎ Call to order · 613 92 98 55'],
+  '.sum a:nth-of-type(2)': ['Demanar a domicili a Just Eat', 'Order delivery on Just Eat'],
+  '.sum small': ['Aquesta llista només és una ajuda perquè tinguis clar què demanar i quant costa: la comanda es fa per telèfon, al local o a Just Eat.', 'This list is just a helper so you know what to order and what it costs: orders are placed by phone, in store or on Just Eat.'],
+  '#clear': ['Buidar la comanda', 'Clear order']
+};
+
+// carta: castellano → [català, English]; '' = igual que en castellano
+const M = {
+  // categorías, grupos y tamaños
+  'Menús':['Menús','Meal deals'], 'Platos':['Plats','Plates'], 'Tapas':['Tapes','Sides & snacks'], 'Ensaladas':['Amanides','Salads'], 'Bebidas':['Begudes','Drinks'],
+  'Para uno':['Per a un','For one'], 'Para dos':['Per a dos','For two'], 'Para el grupo':['Per al grup','For the group'],
+  'Pequeña':['Petita','Small'], 'Mediana':['Mitjana','Medium'], 'Grande':['Gran','Large'],
+  'Pollo, ternera o mixto':['Pollastre, vedella o mixt','Chicken, beef or mixed'],
+  'Al plato, con guarnición':['Al plat, amb guarnició','Served on a plate with sides'],
+  'Todas con mozzarella y orégano':['Totes amb mozzarella i orenga','All with mozzarella and oregano'],
+  'Pizza cerrada al horno':['Pizza tancada al forn','Folded oven-baked pizza'],
+  'Para picar o acompañar':['Per picar o acompanyar','To snack on or share'],
+  // kebabs
+  'Kebab Durum Horno':['Kebab Durum al Forn','Oven-Baked Durum Kebab'],
+  'Pan de pita relleno':['Pa de pita farcit','Stuffed pita bread'],
+  'Enrollado en tortilla de trigo':['Enrotllat en tortilla de blat','Rolled in a wheat tortilla'],
+  'Gratinado al horno':['Gratinat al forn','Finished in the oven'],
+  // menús
+  'Menú Doner Kebab':['','Doner Kebab Meal'],
+  'Menú Durum o Bocadillo Kebab':['Menú Durum o Entrepà Kebab','Durum or Kebab Sandwich Meal'],
+  'Menú Plato Kebab':['Menú Plat Kebab','Kebab Plate Meal'],
+  'Menú Doner Box':['','Doner Box Meal'],
+  'Menú Patatas con Carne':['Menú Patates amb Carn','Fries with Meat Meal'],
+  'Menú Pita Falafel':['','Falafel Pita Meal'],
+  'Menú Hamburguesa':['','Burger Meal'],
+  'Menú Hot Dog':['','Hot Dog Meal'],
+  'Menú Nuggets de Pollo, 6 unidades':['Menú Nuggets de Pollastre, 6 unitats','Chicken Nuggets Meal, 6 pieces'],
+  'Menú Alitas de Pollo, 6 unidades':['Menú Aletes de Pollastre, 6 unitats','Chicken Wings Meal, 6 pieces'],
+  'Menú Calamares':['Menú Calamars','Calamari Meal'],
+  'Menú Samosa, 3 unidades':['Menú Samosa, 3 unitats','Samosa Meal, 3 pieces'],
+  'Menú Plato Bon Food Especial':['Menú Plat Bon Food Especial','Bon Food Special Plate Meal'],
+  'Menú 2 Pitas Kebab':['','2 Pita Kebabs Meal'],
+  'Menú 2 Durum':['','2 Durums Meal'],
+  'Menú Pita y Durum':['Menú Pita i Durum','Pita & Durum Meal'],
+  'Menú Durum y Nuggets':['Menú Durum i Nuggets','Durum & Nuggets Meal'],
+  'Menú Pita Plus':['','Pita Plus Meal'],
+  'Menú Durum Plus':['','Durum Plus Meal'],
+  'Menú 1 Pizza Pequeña y 1 Hamburguesa':['Menú 1 Pizza Petita i 1 Hamburguesa','1 Small Pizza & 1 Burger Meal'],
+  'Menú 1 Pizza Grande y 1 Pita Kebab':['Menú 1 Pizza Gran i 1 Pita Kebab','1 Large Pizza & 1 Pita Kebab Meal'],
+  'Menú 1 Pizza Pequeña y Nuggets':['Menú 1 Pizza Petita i Nuggets','1 Small Pizza & Nuggets Meal'],
+  'Menú 1 Pizza Grande y 1 Durum Kebab':['Menú 1 Pizza Gran i 1 Durum Kebab','1 Large Pizza & 1 Durum Kebab Meal'],
+  'Menú 2 Pizzas Pequeñas':['Menú 2 Pizzes Petites','2 Small Pizzas Meal'],
+  'Menú 2 Pizzas, 32 cm':['Menú 2 Pizzes, 32 cm','2 Pizzas Meal, 32 cm'],
+  'Menú 3 Pita Kebab':['','3 Pita Kebabs Meal'],
+  'Menú 3 Durum Kebab':['','3 Durum Kebabs Meal'],
+  'Menú 5 Durum Kebab':['','5 Durum Kebabs Meal'],
+  'Menú 3 Patatas con Carne':['Menú 3 Patates amb Carn','3 Fries with Meat Meal'],
+  'Menú 5 Patatas con Carne':['Menú 5 Patates amb Carn','5 Fries with Meat Meal'],
+  'Menú 5 Platos Combinados':['Menú 5 Plats Combinats','5 Combo Plates Meal'],
+  'Menú 1 Pizza 32 cm, 1 Pizza 28 cm y 1 Pita':['Menú 1 Pizza 32 cm, 1 Pizza 28 cm i 1 Pita','32 cm Pizza, 28 cm Pizza & 1 Pita Meal'],
+  'Menú 1 Pizza 32 cm, 1 Pizza 28 cm y 1 Durum':['Menú 1 Pizza 32 cm, 1 Pizza 28 cm i 1 Durum','32 cm Pizza, 28 cm Pizza & 1 Durum Meal'],
+  'Menú 3 Pizzas Pequeñas':['Menú 3 Pizzes Petites','3 Small Pizzas Meal'],
+  'Menú 3 Pizzas, 32 cm':['Menú 3 Pizzes, 32 cm','3 Pizzas Meal, 32 cm'],
+  'Menú 5 Pizzas Pequeñas':['Menú 5 Pizzes Petites','5 Small Pizzas Meal'],
+  'Pollo, ternera o mixto con patatas y bebida':['Pollastre, vedella o mixt amb patates i beguda','Chicken, beef or mixed, with fries and a drink'],
+  'Pollo, ternera o mixto con patatas o arroz y bebida':['Pollastre, vedella o mixt amb patates o arròs i beguda','Chicken, beef or mixed, with fries or rice and a drink'],
+  'Pollo, ternera, mixto o falafel con ensalada y bebida':['Pollastre, vedella, mixt o falafel amb amanida i beguda','Chicken, beef, mixed or falafel, with salad and a drink'],
+  'Pollo, ternera o mixto y bebida':['Pollastre, vedella o mixt i beguda','Chicken, beef or mixed, with a drink'],
+  'Con patatas y bebida':['Amb patates i beguda','With fries and a drink'],
+  'Pollo o ternera con patatas y bebida':['Pollastre o vedella amb patates i beguda','Chicken or beef, with fries and a drink'],
+  'Pincho de pollo o falafel con patatas y bebida':['Broqueta de pollastre o falafel amb patates i beguda','Chicken skewer or falafel, with fries and a drink'],
+  'Pollo, ternera o mixto con patatas y 2 bebidas':['Pollastre, vedella o mixt amb patates i 2 begudes','Chicken, beef or mixed, with fries and 2 drinks'],
+  'Con 2 patatas y 2 bebidas':['Amb 2 patates i 2 begudes','With 2 fries and 2 drinks'],
+  'Pollo, ternera o mixto con 2 patatas y 2 bebidas':['Pollastre, vedella o mixt amb 2 patates i 2 begudes','Chicken, beef or mixed, with 2 fries and 2 drinks'],
+  'Carne con patatas, pita, patatas y 2 bebidas':['Carn amb patates, pita, patates i 2 begudes','Meat with fries, pita, fries and 2 drinks'],
+  'Carne con patatas, durum, patatas y 2 bebidas':['Carn amb patates, durum, patates i 2 begudes','Meat with fries, durum, fries and 2 drinks'],
+  'Con 3 patatas y bebida de 2 L':['Amb 3 patates i beguda de 2 L','With 3 fries and a 2 L drink'],
+  'Con 5 patatas y 2 bebidas de 2 L':['Amb 5 patates i 2 begudes de 2 L','With 5 fries and two 2 L drinks'],
+  'Con bebida de 2 L':['Amb beguda de 2 L','With a 2 L drink'],
+  'Con 2 bebidas de 2 L':['Amb 2 begudes de 2 L','With two 2 L drinks'],
+  'Con patatas o arroz y 2 bebidas de 2 L':['Amb patates o arròs i 2 begudes de 2 L','With fries or rice and two 2 L drinks'],
+  'Con 3 patatas y bebidas de 2 L':['Amb 3 patates i begudes de 2 L','With 3 fries and 2 L drinks'],
+  // platos y burgers
+  'Plato Kebab':['Plat Kebab','Kebab Plate'], 'Plato Arroz':['Plat Arròs','Rice Plate'], 'Plato Falafel':['Plat Falafel','Falafel Plate'],
+  'Burger, 2 unidades':['Burger, 2 unitats','Burgers, 2 pieces'], 'Pechugas':['Pits de pollastre','Chicken Breast'], 'Pescado':['Peix','Fish'],
+  'Plato Especial':['Plat Especial','Special Plate'],
+  'Burger Pollo':['Burger Pollastre','Chicken Burger'], 'Burger Ternera':['Burger Vedella','Beef Burger'],
+  'Burger Especial Bon Food':['','Bon Food Special Burger'], 'Doble con huevo':['Doble amb ou','Double, with egg'],
+  // pizzas
+  'Pizza Margarita':['','Margherita Pizza'], 'Pizza Champiñones':['Pizza Xampinyons','Mushroom Pizza'], 'Pizza Cebolla':['Pizza Ceba','Onion Pizza'],
+  'Pizza Vegetal':['','Veggie Pizza'], 'Pizza Cuatro Quesos':['Pizza Quatre Formatges','Four Cheese Pizza'], 'Pizza Kebab':['','Kebab Pizza'],
+  'Pizza Salami de Pavo':['Pizza Salami de Gall Dindi','Turkey Salami Pizza'],
+  'Pizza Salami, Pavo y Champiñones':['Pizza Salami, Gall Dindi i Xampinyons','Turkey Salami & Mushroom Pizza'],
+  'Pizza Atún':['Pizza Tonyina','Tuna Pizza'], 'Pizza Gambas':['Pizza Gambes','Prawn Pizza'], 'Pizza Hawaiana':['','Hawaiian Pizza'],
+  'Pizza Atún y Huevo':['Pizza Tonyina i Ou','Tuna & Egg Pizza'], 'Pizza Cuatro Estaciones':['Pizza Quatre Estacions','Four Seasons Pizza'],
+  'Pizza Frutos de Mar':['Pizza Fruits de Mar','Seafood Pizza'], 'Pizza Chicken Tikka':['','Chicken Tikka Pizza'], 'Pizza Barbacoa':['','BBQ Pizza'],
+  'Pizza Boloñesa':['Pizza Bolonyesa','Bolognese Pizza'], 'Pizza Seekh Kebab':['','Seekh Kebab Pizza'], 'Pizza Special Bon Food':['','Bon Food Special Pizza'],
+  'Salsa de tomate, mozzarella y orégano':['Salsa de tomàquet, mozzarella i orenga','Tomato sauce, mozzarella and oregano'],
+  'Salsa de tomate, mozzarella, champiñones y orégano':['Salsa de tomàquet, mozzarella, xampinyons i orenga','Tomato sauce, mozzarella, mushrooms and oregano'],
+  'Salsa de tomate, mozzarella, cebolla y orégano':['Salsa de tomàquet, mozzarella, ceba i orenga','Tomato sauce, mozzarella, onion and oregano'],
+  'Salsa de tomate, mozzarella, champiñones, cebolla, maíz, pimientos, olivas y orégano':['Salsa de tomàquet, mozzarella, xampinyons, ceba, blat de moro, pebrots, olives i orenga','Tomato sauce, mozzarella, mushrooms, onion, sweetcorn, peppers, olives and oregano'],
+  'Salsa de tomate, mozzarella, cuatro quesos especiales y orégano':['Salsa de tomàquet, mozzarella, quatre formatges especials i orenga','Tomato sauce, mozzarella, four special cheeses and oregano'],
+  'Salsa de tomate, mozzarella, carne de pollo o ternera y orégano':['Salsa de tomàquet, mozzarella, carn de pollastre o vedella i orenga','Tomato sauce, mozzarella, chicken or beef kebab meat and oregano'],
+  'Salsa de tomate, mozzarella, salami de pavo y orégano':['Salsa de tomàquet, mozzarella, salami de gall dindi i orenga','Tomato sauce, mozzarella, turkey salami and oregano'],
+  'Salsa de tomate, mozzarella, salami de pavo, champiñones y orégano':['Salsa de tomàquet, mozzarella, salami de gall dindi, xampinyons i orenga','Tomato sauce, mozzarella, turkey salami, mushrooms and oregano'],
+  'Salsa de tomate, mozzarella, atún, cebolla y orégano':['Salsa de tomàquet, mozzarella, tonyina, ceba i orenga','Tomato sauce, mozzarella, tuna, onion and oregano'],
+  'Salsa de tomate, mozzarella, gambas, ajo y orégano':['Salsa de tomàquet, mozzarella, gambes, all i orenga','Tomato sauce, mozzarella, prawns, garlic and oregano'],
+  'Salsa de tomate, mozzarella, pollo, piña y orégano':['Salsa de tomàquet, mozzarella, pollastre, pinya i orenga','Tomato sauce, mozzarella, chicken, pineapple and oregano'],
+  'Salsa de tomate, mozzarella, atún, champiñones, huevo y orégano':['Salsa de tomàquet, mozzarella, tonyina, xampinyons, ou i orenga','Tomato sauce, mozzarella, tuna, mushrooms, egg and oregano'],
+  'Salsa de tomate, mozzarella, salami, champiñones, tomate, atún y orégano':['Salsa de tomàquet, mozzarella, salami, xampinyons, tomàquet, tonyina i orenga','Tomato sauce, mozzarella, salami, mushrooms, tomato, tuna and oregano'],
+  'Salsa de tomate, mozzarella, frutos de mar y orégano':['Salsa de tomàquet, mozzarella, fruits de mar i orenga','Tomato sauce, mozzarella, seafood and oregano'],
+  'Salsa de tomate, mozzarella, chicken tikka y orégano':['Salsa de tomàquet, mozzarella, chicken tikka i orenga','Tomato sauce, mozzarella, chicken tikka and oregano'],
+  'Salsa barbacoa, mozzarella, carne de pollo o ternera y orégano':['Salsa barbacoa, mozzarella, carn de pollastre o vedella i orenga','BBQ sauce, mozzarella, chicken or beef kebab meat and oregano'],
+  'Salsa de tomate, mozzarella, seekh kebab y orégano':['Salsa de tomàquet, mozzarella, seekh kebab i orenga','Tomato sauce, mozzarella, seekh kebab and oregano'],
+  // calzones, tapas, ensaladas, bebidas
+  'Calzone Kebab':['','Kebab Calzone'], 'Calzone Vegetal':['','Veggie Calzone'],
+  'Salsa de tomate, queso, carne kebab de pollo o ternera y champiñones':['Salsa de tomàquet, formatge, carn kebab de pollastre o vedella i xampinyons','Tomato sauce, cheese, chicken or beef kebab meat and mushrooms'],
+  'Salsa de tomate, mozzarella, pimientos rojos y verdes, champiñones, cebolla, olivas, maíz y orégano':['Salsa de tomàquet, mozzarella, pebrots vermells i verds, xampinyons, ceba, olives, blat de moro i orenga','Tomato sauce, mozzarella, red and green peppers, mushrooms, onion, olives, sweetcorn and oregano'],
+  'Patatas Fritas':['Patates Fregides','Fries'], 'Patatas Bravas':['Patates Braves',''], 'Patatas Deluxe':['Patates Deluxe','Potato Wedges'],
+  'Alitas':['Aletes','Chicken Wings'], 'Pollo Frito':['Pollastre Fregit','Fried Chicken'], 'Sticks Pollo':['Sticks de Pollastre','Chicken Sticks'],
+  'Croquetas Pollo':['Croquetes de Pollastre','Chicken Croquettes'], 'Calamares':['Calamars','Calamari'], 'Sticks Mozzarella':['Sticks de Mozzarella','Mozzarella Sticks'],
+  'Ensalada Verde':['Amanida Verda','Green Salad'], 'Ensalada de Atún':['Amanida de Tonyina','Tuna Salad'],
+  'Coca Cola, Coca Cola Zero, Fanta Naranja, Fanta Limón, Nestea, Aquarius Naranja, Aquarius Limón, Sprite y 7Up':['Coca Cola, Coca Cola Zero, Fanta Taronja, Fanta Llimona, Nestea, Aquarius Taronja, Aquarius Llimona, Sprite i 7Up','Coca Cola, Coca Cola Zero, Fanta Orange, Fanta Lemon, Nestea, Aquarius Orange, Aquarius Lemon, Sprite and 7Up'],
+  'Refresco en lata':['Refresc en llauna','Soft drink, can'], 'Refresco de 2 L':['Refresc de 2 L','Soft drink, 2 L'], 'Elige tu sabor':['Tria el teu gust','Choose your flavour']
+};
+const tr = s => (lang !== 'es' && M[s] && M[s][lang === 'ca' ? 0 : 1]) || s;
+// el pedido se guarda con el nombre en castellano; aquí se muestra en el idioma activo
+const trKey = k => { const m = k.match(/^(.*) \(([^)]+)\)$/); return m ? `${tr(m[1])} (${tr(m[2])})` : tr(k); };
+
 /* ---------- pintar carta ---------- */
 function row([name, desc, price, veg]) {
   let buy;
-  if (price === null) buy = `<a class="ask" href="tel:+34613929855">Consultar precio</a>`;
+  if (price === null) buy = `<a class="ask" href="tel:+34613929855">${t('ask')}</a>`;
   else {
     const vars = Array.isArray(price) ? price : [['', price]];
     buy = vars.map(([sz, p]) => {
-      const full = sz ? `${name} (${sz})` : name;
-      return `<button class="add" data-n="${esc(full)}" data-p="${p}" aria-label="Añadir ${esc(full)} al pedido, ${eur(p)}">${sz ? `<small>${sz}</small>` : ''}${eur(p)}<b aria-hidden="true">+</b></button>`;
+      const key = sz ? `${name} (${sz})` : name;
+      return `<button class="add" data-n="${esc(key)}" data-p="${p}" aria-label="${esc(t('add')(trKey(key), eur(p)))}">${sz ? `<small>${tr(sz)}</small>` : ''}${eur(p)}<b aria-hidden="true">+</b></button>`;
     }).join('');
   }
-  return `<li class="it${Array.isArray(price) ? ' multi' : ''}" data-s="${esc(norm(name + ' ' + desc))}"${veg ? ' data-v' : ''}>
-    <div class="it-main"><h4>${esc(name)}${veg && !/Refresco/.test(name) ? '<span class="nv">Sin carne</span>' : ''}</h4>${desc ? `<p>${esc(desc)}</p>` : ''}</div>
+  const d = desc ? tr(desc) : '';
+  return `<li class="it${Array.isArray(price) ? ' multi' : ''}" data-s="${esc(norm(name + ' ' + desc + ' ' + tr(name) + ' ' + d))}"${veg ? ' data-v' : ''}>
+    <div class="it-main"><h4>${esc(tr(name))}${veg && !/Refresco/.test(name) ? `<span class="nv">${t('veg')}</span>` : ''}</h4>${d ? `<p>${esc(d)}</p>` : ''}</div>
     <div class="buy">${buy}</div></li>`;
 }
-$('#menu').innerHTML = CARTA.map(c => `
-  <div class="cat" id="c-${c.id}">
-    <div class="cat-h"><h3>${c.n}</h3>${c.d ? `<span>${c.d}</span>` : ''}</div>
-    ${c.groups
-      ? c.groups.map(g => `<div class="g"><p class="grp cond">${g.t}</p><ul class="list">${g.items.map(row).join('')}</ul></div>`).join('')
-      : `<ul class="list">${c.items.map(row).join('')}</ul>`}
-  </div>`).join('');
-$('#cats').innerHTML = CARTA.map(c => `<a href="#c-${c.id}" data-c="${c.id}">${c.n}</a>`).join('');
-
-/* ---------- categoría activa ---------- */
-const chips = [...document.querySelectorAll('#cats a')];
+let chips = [];
 const spy = new IntersectionObserver(es => {
   es.forEach(e => {
     if (!e.isIntersecting) return;
@@ -606,7 +838,19 @@ const spy = new IntersectionObserver(es => {
     if (on) $('#cats').scrollTo({left: on.offsetLeft - $('#cats').offsetLeft - 16});
   });
 }, {rootMargin: '-25% 0px -70% 0px'});
-document.querySelectorAll('.cat').forEach(c => spy.observe(c));
+function renderMenu() {
+  spy.disconnect();
+  $('#menu').innerHTML = CARTA.map(c => `
+    <div class="cat" id="c-${c.id}">
+      <div class="cat-h"><h3>${tr(c.n)}</h3>${c.d ? `<span>${tr(c.d)}</span>` : ''}</div>
+      ${c.groups
+        ? c.groups.map(g => `<div class="g"><p class="grp cond">${tr(g.t)}</p><ul class="list">${g.items.map(row).join('')}</ul></div>`).join('')
+        : `<ul class="list">${c.items.map(row).join('')}</ul>`}
+    </div>`).join('');
+  $('#cats').innerHTML = CARTA.map(c => `<a href="#c-${c.id}" data-c="${c.id}">${tr(c.n)}</a>`).join('');
+  chips = [...document.querySelectorAll('#cats a')];
+  document.querySelectorAll('.cat').forEach(c => spy.observe(c));
+}
 
 /* ---------- buscar y filtrar ---------- */
 let onlyVeg = false;
@@ -619,15 +863,14 @@ function filter() {
       let n = 0;
       list.querySelectorAll('.it').forEach(it => {
         const ok = (!q || it.dataset.s.includes(q)) && (!onlyVeg || 'v' in it.dataset);
-        it.hidden = !ok; it.style.display = ok ? '' : 'none';
+        it.style.display = ok ? '' : 'none';
         if (ok) n++;
       });
       const g = list.closest('.g'); if (g) g.style.display = n ? '' : 'none';
       if (n) catAny = true;
     });
     cat.style.display = catAny ? '' : 'none';
-    const chip = chips.find(a => 'c-' + a.dataset.c === cat.id);
-    chip.style.display = catAny ? '' : 'none';
+    chips.find(a => 'c-' + a.dataset.c === cat.id).style.display = catAny ? '' : 'none';
     if (catAny) any = true;
   });
   $('#none').style.display = any ? 'none' : 'block';
@@ -644,13 +887,13 @@ const save = () => { try { localStorage.setItem('bonfood-pedido', JSON.stringify
 function paint() {
   const keys = Object.keys(order);
   const n = keys.reduce((a, k) => a + order[k].q, 0);
-  const t = keys.reduce((a, k) => a + order[k].q * order[k].p, 0);
-  $('#bar-n').textContent = n; $('#bar-t').textContent = eur(t); $('#tot').textContent = eur(t);
+  const sum = keys.reduce((a, k) => a + order[k].q * order[k].p, 0);
+  $('#bar-n').textContent = n; $('#bar-t').textContent = eur(sum); $('#tot').textContent = eur(sum);
   $('#bar').classList.toggle('show', n > 0);
   $('#lines').innerHTML = keys.length ? keys.map(k => `<li>
-      <span class="nm">${esc(k)}<small>${eur(order[k].p)} / ud.</small></span>
-      <span class="qty"><button data-k="${esc(k)}" data-d="-1" aria-label="Quitar uno">−</button><span>${order[k].q}</span><button data-k="${esc(k)}" data-d="1" aria-label="Añadir uno">+</button></span>
-    </li>`).join('') : '<li class="empty" style="border:0">Aún no has apuntado nada. Toca cualquier precio de la carta para añadirlo.</li>';
+      <span class="nm">${esc(trKey(k))}<small>${eur(order[k].p)} ${t('ud')}</small></span>
+      <span class="qty"><button data-k="${esc(k)}" data-d="-1" aria-label="${t('less')}">−</button><span>${order[k].q}</span><button data-k="${esc(k)}" data-d="1" aria-label="${t('more')}">+</button></span>
+    </li>`).join('') : `<li class="empty" style="border:0">${t('empty')}</li>`;
   save();
 }
 $('#menu').addEventListener('click', e => {
@@ -673,26 +916,55 @@ sheet.addEventListener('click', e => { if (e.target === sheet) sheet.close(); })
 $('#clear').addEventListener('click', () => { order = {}; paint(); sheet.close(); });
 $('#copy').addEventListener('click', async e => {
   const keys = Object.keys(order); if (!keys.length) return;
-  const txt = 'Pedido Bon Food:\n' + keys.map(k => `${order[k].q} × ${k}`).join('\n') + '\nTotal aprox.: ' + $('#tot').textContent;
-  try { await navigator.clipboard.writeText(txt); e.target.textContent = 'Lista copiada ✓'; }
-  catch (err) { e.target.textContent = 'No se pudo copiar'; }
-  setTimeout(() => e.target.textContent = 'Copiar la lista', 2200);
+  const txt = t('head') + '\n' + keys.map(k => `${order[k].q} × ${trKey(k)}`).join('\n') + '\n' + t('total') + ' ' + $('#tot').textContent;
+  try { await navigator.clipboard.writeText(txt); e.target.textContent = t('copied'); }
+  catch (err) { e.target.textContent = t('nocopy'); }
+  setTimeout(() => e.target.textContent = t('copy'), 2200);
 });
-paint();
 
 /* ---------- abierto / cerrado (hora de Blanes) ---------- */
 function clock() {
   const parts = new Intl.DateTimeFormat('es-ES', {timeZone: 'Europe/Madrid', hour: 'numeric', minute: 'numeric', weekday: 'short', hour12: false}).formatToParts(new Date());
-  const get = t => parts.find(p => p.type === t).value;
+  const get = k => parts.find(p => p.type === k).value;
   const mins = (+get('hour') % 24) * 60 + +get('minute');
   const open = mins >= 720 && mins < 1380;
   const el = $('#state');
   el.className = 'state cond ' + (open ? 'open' : 'shut');
-  el.lastElementChild.textContent = open ? 'Abierto · hasta las 23:00' : (mins < 720 ? 'Cerrado · abre a las 12:00' : 'Cerrado · abre mañana 12:00');
+  el.lastElementChild.innerHTML = `${t(open ? 'open' : 'shut')}<span class="xs-hide"> · ${t(open ? 'until' : mins < 720 ? 'opens' : 'tom')}</span>`;
   const idx = ['lun','mar','mié','jue','vie','sáb','dom'].indexOf(get('weekday').replace('.', '').slice(0, 3).toLowerCase());
-  [...$('#week').children].forEach((s, i) => s.classList.toggle('today', i === idx));
+  [...$('#week').children].forEach((s, i) => { s.textContent = t('days')[i]; s.classList.toggle('today', i === idx); });
 }
-clock(); setInterval(clock, 60000);
+setInterval(clock, 60000);
+
+/* ---------- aplicar idioma ---------- */
+const ES = {};
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.title = t('title');
+  for (const sel in I) {
+    const el = $(sel); if (!el) continue;
+    if (!(sel in ES)) ES[sel] = el.innerHTML;
+    el.innerHTML = lang === 'es' ? ES[sel] : I[sel][lang === 'ca' ? 0 : 1];
+  }
+  $('#q').placeholder = t('ph'); $('#q').setAttribute('aria-label', t('phA'));
+  $('.call').setAttribute('aria-label', t('call'));
+  $('#copy').textContent = t('copy');
+  $('#lang-c').textContent = lang.toUpperCase();
+  document.querySelectorAll('#lang-m button').forEach(b => b.setAttribute('aria-current', b.dataset.l === lang));
+  renderMenu(); filter(); paint(); clock();
+}
+const langB = $('#lang-b'), langM = $('#lang-m');
+const langOpen = on => { langM.hidden = !on; langB.setAttribute('aria-expanded', on); };
+langB.addEventListener('click', e => { e.stopPropagation(); langOpen(langM.hidden); });
+langM.addEventListener('click', e => {
+  const b = e.target.closest('button[data-l]'); if (!b) return;
+  lang = b.dataset.l;
+  try { localStorage.setItem('bonfood-lang', lang); } catch (err) {}
+  langOpen(false); applyLang();
+});
+document.addEventListener('click', () => langOpen(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') langOpen(false); });
+applyLang();
 </script>
 </body>
 </html>
